@@ -5,6 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#F2F2F7",
+      "resizeMode": "contain"
+    },
     "android": {
       "package": "com.smarttravel.companion",
       "versionCode": 1,

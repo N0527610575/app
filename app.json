@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Smart Travel Companion",
+    "slug": "smart-travel-companion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.smarttravel.companion",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#F2F2F7"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "BODY_SENSORS",
+        "READ_EXTERNAL_STORAGE",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "האפליקציה זקוקה לגישה למיקום כדי לזהות הגעה לשדה התעופה ולהציג מסמכים רלוונטיים בזמן אמת."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9809d486-102d-4079-bfc0-1b56a78ed36a"
+      }
+    }
+  }
+}

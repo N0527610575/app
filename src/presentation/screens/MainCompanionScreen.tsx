@@ -24,20 +24,11 @@ import { TravelDocument } from '../../core/types/Document';
  * הערה: במערכת אמיתית נייבא כאן Hook גלובלי (כמו Redux או Context API)
  * שמספק את המידע החי מהחיישנים ומהדאטה-בייס. לצורך ההדגמה, נגדיר את המבנה.
  */
-// import { useTravelContext } from '../state/TripContext';
+import { useTravelContext } from '../state/TripContext';
 
 export const MainCompanionScreen: React.FC = () => {
-  // === חיבור למצב הגלובלי (Mocking the Context) ===
-  // const { contextState, activeTrip, documents, updateActivePassenger } = useTravelContext();
-
-  // נתוני דמה שמדמים את מה שהיינו מקבלים מה-Context
-  const [contextState, setContextState] = useState<ContextState>({
-    currentPhase: 'BOARDING_GATE', // דוגמה: אנחנו בשלב הבורדינג
-    isBarcodeHeroVisible: true,
-    activePassengerId: 'pass_1',
-    toastMessage: 'שער העלייה נפתח. נא להכין דרכונים וכרטיסים פתוחים.',
-    isMoving: false,
-  });
+  // === חיבור למצב הגלובלי מתוך ה-Context ===
+  const { contextState, activeTrip, setActivePassenger } = useTravelContext();
 
   // אנימציה עדינה להופעת הודעת ה-Toast העליונה
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -58,33 +49,32 @@ export const MainCompanionScreen: React.FC = () => {
     }
   }, [contextState.toastMessage]);
 
-  // === בניית נתוני הדמה של המשפחה והמסמכים (בפועל יגיע מהדאטה-בייס) ===
-  const activeTrip = useMemo<Trip | null>(() => ({
-    id: 'trip_rome',
-    title: 'חופשה ברומא',
-    isActive: true,
-    anchor: { departureDate: '2026-10-15T10:00:00Z', scanWindowStartDate: '2025-10-15T00:00:00Z' },
-    flights: [], // הושמט לקיצור
-    passengers: [
-      { id: 'pass_1', fullName: 'נחמן חסון', shortName: 'נחמן', isPrimaryUser: true, currentSeatNumber: '27E' },
-      { id: 'pass_2', fullName: 'שולמית חיה', shortName: 'שולמית', isPrimaryUser: false, currentSeatNumber: '27F' }
-    ],
-    documents: [],
-    createdAt: '', updatedAt: ''
-  }), []);
+  const currentPassenger = useMemo(() => {
+    return activeTrip?.passengers.find(p => p.id === contextState.activePassengerId) || activeTrip?.passengers[0];
+  }, [activeTrip?.passengers, contextState.activePassengerId]);
 
-  const activeDocument = useMemo<TravelDocument | null>(() => ({
-    id: 'doc_1',
-    tripId: 'trip_rome',
-    passengerId: contextState.activePassengerId, // מתעדכן לפי הלחיצה בטאבים
-    title: `כרטיס עלייה למטוס - ${contextState.activePassengerId === 'pass_1' ? 'נחמן' : 'שולמית'}`,
-    category: 'flight',
-    localFilePath: 'file://...',
-    mimeType: 'application/pdf',
-    barcode: { format: 'PDF417', rawData: 'M1HASSON/NACHMAN...' },
-    trigger: { type: 'flight_phase', isActive: true },
-    isArchived: false, createdAt: '', source: 'auto_file_scan'
-  }), [contextState.activePassengerId]);
+  const activeDocument = useMemo<TravelDocument | null>(() => {
+    if (!currentPassenger) return null;
+    return {
+      id: `doc_${currentPassenger.id}`,
+      tripId: activeTrip?.id || 'trip_rome',
+      passengerId: currentPassenger.id,
+      title: `כרטיס עלייה למטוס - ${currentPassenger.shortName}`,
+      category: 'flight',
+      localFilePath: 'file://...',
+      mimeType: 'application/pdf',
+      barcode: {
+        format: 'PDF417',
+        rawData: `M1${currentPassenger.fullName.toUpperCase().replace(/\s+/g, '/')}/E...`,
+        passengerName: currentPassenger.fullName,
+        seatNumber: currentPassenger.currentSeatNumber,
+      },
+      trigger: { type: 'flight_phase', isActive: true },
+      isArchived: false,
+      createdAt: new Date().toISOString(),
+      source: 'auto_file_scan'
+    };
+  }, [currentPassenger, activeTrip?.id]);
 
   const hotelTarget = useMemo(() => ({
     type: 'hotel' as const,
@@ -92,11 +82,9 @@ export const MainCompanionScreen: React.FC = () => {
     address: 'Via Veneto 125, Rome, Italy',
   }), []);
 
-
   // === מטפל באירועים ===
   const handlePassengerChange = (passengerId: string) => {
-    // עדכון מזהה הנוסע הפעיל במערכת - ישנה את הברקוד המרכזי מיד
-    setContextState(prev => ({ ...prev, activePassengerId: passengerId }));
+    setActivePassenger(passengerId);
   };
 
   // === רינדור המסך ===
@@ -117,7 +105,10 @@ export const MainCompanionScreen: React.FC = () => {
 
           {/* אזור 2: ה"גיבור" המרכזי - הברקוד הענק או מספר המושב */}
           <HeroDisplayCard
-            context={contextState}
+            context={{
+              ...contextState,
+              highlightedSeat: currentPassenger?.currentSeatNumber,
+            }}
             activeDocument={activeDocument}
           />
 

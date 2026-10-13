@@ -7,17 +7,14 @@
  * נתון זה קריטי למכונת המצבים כדי לדעת מתי להסתיר את הברקוד ולנעול את המסך על "מצב טיסה".
  */
 
+import { Accelerometer } from 'expo-sensors';
 import { AppConfig } from '../../core/constants/AppConfig';
-
-// ייבוא דמה של ספריית חיישנים מקומית ב-React Native
-// import { accelerometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
 
 export class MotionService {
   private isMonitoring: boolean = false;
   private isCurrentlyWalking: boolean = false;
-
-  // טיימר לניטור זמני מנוחה (חוסר תנועה)
   private motionlessStartTime: number | null = null;
+  private subscription: { remove: () => void } | null = null;
 
   // סף התנועה (Magnitude) שמעליו נחשב שהמשתמש צועד
   private readonly WALKING_THRESHOLD = 1.2;
@@ -25,29 +22,39 @@ export class MotionService {
   /**
    * מתחיל להאזין למד התאוצה
    */
-  public startMonitoring() {
+  public async startMonitoring(): Promise<void> {
     if (this.isMonitoring) return;
 
-    console.log("[MotionService] מתחיל לנטר תנועה (מד תאוצה)...");
-    this.isMonitoring = true;
-    this.motionlessStartTime = null;
+    try {
+      const isAvailable = await Accelerometer.isAvailableAsync();
+      if (!isAvailable) {
+        console.warn("[MotionService] מד תאוצה אינו זמין במכשיר זה.");
+        return;
+      }
 
-    // בפועל, כאן נגדיר קריאה מהחיישן (למשל פעמיים בשנייה כדי לא להכביד)
-    // setUpdateIntervalForType(SensorTypes.accelerometer, 500);
+      console.log("[MotionService] מתחיל לנטר תנועה דרך expo-sensors...");
+      this.isMonitoring = true;
+      this.motionlessStartTime = null;
 
-    // this.subscription = accelerometer.subscribe(({ x, y, z }) => {
-    //   this.analyzeMotion(x, y, z);
-    // });
+      Accelerometer.setUpdateInterval(500);
+
+      this.subscription = Accelerometer.addListener(({ x, y, z }) => {
+        this.analyzeMotion(x, y, z);
+      });
+    } catch (error) {
+      console.warn("[MotionService] שגיאה באתחול מד תאוצה:", error);
+    }
   }
 
   /**
    * עוצר את האזנה לחיישן
    */
-  public stopMonitoring() {
+  public stopMonitoring(): void {
     if (!this.isMonitoring) return;
 
     console.log("[MotionService] עוצר ניטור תנועה.");
-    // this.subscription?.unsubscribe();
+    this.subscription?.remove();
+    this.subscription = null;
     this.isMonitoring = false;
     this.isCurrentlyWalking = false;
   }

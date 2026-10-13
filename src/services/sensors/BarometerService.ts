@@ -8,42 +8,49 @@
  * זיהוי ירידה זו מאפשר לדעת בוודאות שהמראנו, גם ללא GPS או רשת אינטרנט.
  */
 
+import { Barometer } from 'expo-sensors';
 import { AppConfig } from '../../core/constants/AppConfig';
-
-// ייבוא דמה של ספריית חיישנים מקומית ב-React Native
-// import { barometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
 
 export class BarometerService {
   private baseGroundPressure: number | null = null; // הלחץ ההתחלתי שנמדד בשדה התעופה
   private currentPressure: number = 1013.25;        // ברירת מחדל (פני הים)
   private isMonitoring: boolean = false;
-  // private subscription: any;
+  private subscription: { remove: () => void } | null = null;
 
   /**
    * מתחיל להאזין לחיישן הברומטר של המכשיר
    */
-  public startMonitoring() {
+  public async startMonitoring(): Promise<void> {
     if (this.isMonitoring) return;
 
-    console.log("[BarometerService] מתחיל לנטר לחץ ברומטרי...");
-    this.isMonitoring = true;
+    try {
+      const isAvailable = await Barometer.isAvailableAsync();
+      if (!isAvailable) {
+        console.warn("[BarometerService] חיישן ברומטר אינו זמין במכשיר זה.");
+        return;
+      }
 
-    // בפועל, כאן נגדיר קריאה מהחיישן כל כמה שניות כדי לחסוך סוללה
-    // setUpdateIntervalForType(SensorTypes.barometer, 5000);
+      console.log("[BarometerService] מתחיל לנטר לחץ ברומטרי דרך expo-sensors...");
+      this.isMonitoring = true;
+      Barometer.setUpdateInterval(5000);
 
-    // this.subscription = barometer.subscribe(({ pressure }) => {
-    //   this.handlePressureUpdate(pressure);
-    // });
+      this.subscription = Barometer.addListener(({ pressure }) => {
+        this.handlePressureUpdate(pressure);
+      });
+    } catch (error) {
+      console.warn("[BarometerService] שגיאה באתחול ברומטר:", error);
+    }
   }
 
   /**
    * מפסיק את ההאזנה לחיישן כדי לחסוך סוללה כשאין טיסה קרובה
    */
-  public stopMonitoring() {
+  public stopMonitoring(): void {
     if (!this.isMonitoring) return;
 
     console.log("[BarometerService] עוצר ניטור ברומטרי.");
-    // this.subscription?.unsubscribe();
+    this.subscription?.remove();
+    this.subscription = null;
     this.isMonitoring = false;
     this.baseGroundPressure = null;
   }

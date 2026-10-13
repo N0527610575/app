@@ -22,9 +22,15 @@ export class LocationService {
    */
   public async requestPermissions(): Promise<boolean> {
     try {
-      console.log("[LocationService] מבקש הרשאות מיקום...");
+      console.log("[LocationService] מבקש הרשאות מיקום (חזית ורקע)...");
       const { status } = await Location.requestForegroundPermissionsAsync();
-      return status === 'granted';
+      if (status === 'granted') {
+        await Location.requestBackgroundPermissionsAsync().catch(() => {
+          // טיפול סובלני במידה וסביבת ההרצה אינה תומכת ברקע (למשל ווב או סימולטור)
+        });
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error("[LocationService] שגיאה בבקשת הרשאת מיקום:", error);
       return false;

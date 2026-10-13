@@ -19,9 +19,11 @@ export interface LiveFlightStatus {
 }
 
 export class FlightStatusAPI {
-  // כתובת ה-API החיצוני (לדוגמה) ומפתח ההצפנה (שיישמר בסביבת ה-ENV בפועל)
+  // כתובת ה-API החיצוני
   private static readonly API_BASE_URL = 'https://api.aviationstack.com/v1/flights';
-  private static readonly API_KEY = 'YOUR_SECRET_API_KEY';
+
+  // יש למלא כאן מפתח API עבור שירות זמני טיסות וסטטוס טיסות (למשל: Aviationstack / FlightStats)
+  private static readonly API_KEY: string = '';
 
   /**
    * מושך את הסטטוס העדכני של הטיסה
@@ -30,36 +32,48 @@ export class FlightStatusAPI {
    */
   public static async fetchLiveStatus(flightNumber: string, scheduledDate: string): Promise<LiveFlightStatus | null> {
     try {
-      console.log(`[FlightStatusAPI] מושך סטטוס עדכני עבור טיסה ${flightNumber}...`);
+      console.log(`[FlightStatusAPI] בודק סטטוס עדכני עבור טיסה ${flightNumber}...`);
 
-      // בניית כתובת הבקשה (Query String)
-      // בפיתוח אמיתי נשתמש בספרייה כמו Axios או Fetch
-      const requestUrl = `${this.API_BASE_URL}?access_key=${this.API_KEY}&flight_iata=${flightNumber}`;
+      // בדיקה האם הוגדר מפתח API
+      if (!this.API_KEY || this.API_KEY.trim() === '') {
+        console.warn('[FlightStatusAPI] יש למלא כאן מפתח API עבור שירות זמני טיסות (Aviationstack). מחזיר נתוני ברירת מחדל מתוזמנים.');
+        return {
+          flightNumber: flightNumber,
+          status: 'SCHEDULED',
+          departureGate: 'B22',
+          arrivalBaggageBelt: 'מסוע 8',
+          estimatedDepartureTime: scheduledDate,
+          estimatedArrivalTime: new Date(new Date(scheduledDate).getTime() + 4 * 60 * 60 * 1000).toISOString(),
+        };
+      }
 
-      /*
+      // קריאה חיה לשרת ה-API כאשר המפתח מוגדר
+      const requestUrl = `${this.API_BASE_URL}?access_key=${encodeURIComponent(this.API_KEY)}&flight_iata=${encodeURIComponent(flightNumber)}`;
       const response = await fetch(requestUrl);
-      if (!response.ok) throw new Error('שגיאת רשת במשיכת נתוני טיסה');
-      const data = await response.json();
-      */
 
-      // =================================================================
-      // הדמיית (Mock) תשובה מהשרת - כדי שנוכל להמשיך לפתח ללא תלות ברשת
-      // =================================================================
-      const mockResponse: LiveFlightStatus = {
-        flightNumber: flightNumber,
-        status: 'SCHEDULED',
-        departureGate: 'B22',               // השער התעדכן!
-        arrivalBaggageBelt: 'מסוע 8',       // מידע קריטי לנחיתה
-        estimatedDepartureTime: scheduledDate,
-        estimatedArrivalTime: new Date(new Date(scheduledDate).getTime() + 4 * 60 * 60 * 1000).toISOString() // הוספת 4 שעות
+      if (!response.ok) {
+        throw new Error(`שגיאת שרת בקבלת סטטוס טיסה: ${response.status}`);
+      }
+
+      const json = await response.json();
+      const flightData = json.data && json.data.length > 0 ? json.data[0] : null;
+
+      if (!flightData) {
+        console.warn('[FlightStatusAPI] לא נמצאו נתונים עדכניים עבור טיסה זו ב-API.');
+        return null;
+      }
+
+      return {
+        flightNumber: flightData.flight?.iata || flightNumber,
+        status: (flightData.flight_status?.toUpperCase() as LiveFlightStatus['status']) || 'SCHEDULED',
+        departureGate: flightData.departure?.gate || undefined,
+        arrivalBaggageBelt: flightData.arrival?.baggage ? `מסוע ${flightData.arrival.baggage}` : undefined,
+        estimatedDepartureTime: flightData.departure?.estimated || scheduledDate,
+        estimatedArrivalTime: flightData.arrival?.estimated || new Date(new Date(scheduledDate).getTime() + 4 * 60 * 60 * 1000).toISOString(),
       };
-
-      console.log(`[FlightStatusAPI] התקבל עדכון: שער ${mockResponse.departureGate}, מסוע מזוודות: ${mockResponse.arrivalBaggageBelt}`);
-      return mockResponse;
-
     } catch (error) {
-      console.error("[FlightStatusAPI] שגיאה במשיכת נתוני הטיסה:", error);
-      // במקרה של שגיאה או חוסר קליטה, נחזיר null והאפליקציה תסתמך על הנתונים מהכרטיס
+      console.error('[FlightStatusAPI] שגיאה במשיכת נתוני הטיסה:', error);
+      // במקרה של שגיאה או חוסר קליטה, נחזיר null והאפליקציה תסתמך על הנתונים מהכרטיס המקומי
       return null;
     }
   }

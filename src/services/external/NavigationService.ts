@@ -11,6 +11,8 @@
 import { Linking, Platform } from 'react-native';
 
 export class NavigationService {
+  // יש למלא כאן מפתח API עבור Google Maps Platform / Directions API (במידת הצורך לשירותי מפות מתקדמים)
+  private static readonly GOOGLE_MAPS_API_KEY: string = '';
 
   /**
    * פתיחת אפליקציית מפות ליעד ספציפי מבוסס קואורדינטות (GPS)
@@ -24,12 +26,16 @@ export class NavigationService {
 
       // קישור אוניברסלי שעובד גם באנדרואיד וגם ב-iOS ופותח את גוגל מפות
       const query = `${latitude},${longitude}`;
+      const apiKeyParam = this.GOOGLE_MAPS_API_KEY ? `&key=${encodeURIComponent(this.GOOGLE_MAPS_API_KEY)}` : '';
+
       const url = Platform.select({
         // באנדרואיד נוכל להשתמש ב-geo intent המובנה
-        android: `geo:0,0?q=${query}${label ? `(${label})` : ''}`,
+        android: `geo:0,0?q=${query}${label ? `(${encodeURIComponent(label)})` : ''}`,
         // ב-iOS או כברירת מחדל, נשתמש ב-URL של גוגל מפות
-        default: `https://www.google.com/maps/search/?api=1&query=${query}`
+        default: `https://www.google.com/maps/search/?api=1&query=${query}${apiKeyParam}`
       });
+
+      if (!url) return;
 
       // בדיקה האם המכשיר מסוגל לפתוח את הקישור הזה
       const supported = await Linking.canOpenURL(url);
@@ -38,7 +44,7 @@ export class NavigationService {
         await Linking.openURL(url);
       } else {
         // Fallback למקרה שאין אפליקציית מפות נתמכת - פתיחה בדפדפן
-        const browserUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+        const browserUrl = `https://www.google.com/maps/search/?api=1&query=${query}${apiKeyParam}`;
         await Linking.openURL(browserUrl);
       }
 
@@ -59,7 +65,8 @@ export class NavigationService {
 
       // קידוד הטקסט כך שיתאים לפורמט של קישור (הפיכת רווחים ל-%20 וכו')
       const encodedAddress = encodeURIComponent(address);
-      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+      const apiKeyParam = this.GOOGLE_MAPS_API_KEY ? `&key=${encodeURIComponent(this.GOOGLE_MAPS_API_KEY)}` : '';
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}${apiKeyParam}`;
 
       await Linking.openURL(url);
 

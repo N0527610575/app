@@ -19,6 +19,11 @@ export interface EmailAttachment {
 }
 
 export class EmailSyncService {
+  // יש למלא כאן Client ID של גוגל עבור אימות Gmail OAuth 2.0
+  private static readonly GOOGLE_CLIENT_ID: string = '';
+
+  // יש למלא כאן מפתח API של Google במידת הצורך
+  private static readonly GOOGLE_API_KEY: string = '';
 
   /**
    * הפונקציה המרכזית לסנכרון מיילים רלוונטיים לנסיעה.
@@ -30,12 +35,11 @@ export class EmailSyncService {
     try {
       console.log("[EmailSyncService] מתחיל סנכרון מיילים חכם...");
 
-      // 1. בניית שאילתת החיפוש (למשל בפורמט של Gmail API)
+      // 1. בניית שאילתת החיפוש (בפורמט של Gmail API)
       const searchQuery = this.buildSearchQuery(anchor.scanWindowStartDate);
       console.log(`[EmailSyncService] שאילתת חיפוש: ${searchQuery}`);
 
-      // 2. קריאה ל-API של ספק המייל (מדמה קריאת רשת ל-Gmail API)
-      // בפועל פה נשתמש בספרייה כמו 'gapi.client.gmail'
+      // 2. קריאה ל-API של ספק המייל (Gmail API)
       const relevantMessageIds = await this.fetchMessageIds(accessToken, searchQuery);
 
       const attachments: EmailAttachment[] = [];
@@ -66,29 +70,81 @@ export class EmailSyncService {
     const flightWords = CATEGORY_KEYWORDS.flight.filter(w => /^[a-zA-Z\s]+$/.test(w));
     const hotelWords = CATEGORY_KEYWORDS.hotel.filter(w => /^[a-zA-Z\s]+$/.test(w));
 
-    const combinedKeywords = [...flightWords, ...hotelWords].slice(0, 10); // ניקח את 10 החזקות ביותר
+    const combinedKeywords = [...flightWords, ...hotelWords].slice(0, 10);
     const wordsQuery = combinedKeywords.join(' OR ');
 
     return `has:attachment (${wordsQuery}) after:${dateQuery}`;
   }
 
-  // =========================================================================
-  // פונקציות דמה (Mock) לצורך הדגמת הקריאות ל-API (ימומשו מול ספריות Native)
-  // =========================================================================
-
+  /**
+   * משיכת מזהי ההודעות מ-Gmail API
+   */
   private static async fetchMessageIds(token: string, query: string): Promise<string[]> {
-    // מדמה קריאה לשרת להבאת רשימת מזהי הודעות (IDs)
-    return Promise.resolve(['msg_12345', 'msg_67890']);
+    if (!token || token.trim() === '') {
+      console.warn('[EmailSyncService] יש למלא כאן טוקן התחברות OAuth / מפתח API עבור סנכרון חשבון Gmail.');
+      return [];
+    }
+
+    try {
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        throw new Error(`שגיאת רשת מ-Gmail API: ${res.status}`);
+      }
+
+      const data = await res.json();
+      return (data.messages || []).map((m: { id: string }) => m.id);
+    } catch (err) {
+      console.error('[EmailSyncService] שגיאה במשיכת מזהי הודעות:', err);
+      return [];
+    }
   }
 
+  /**
+   * חילוץ קבצים מצורפים מתוך הודעה
+   */
   private static async extractAttachments(token: string, messageId: string): Promise<EmailAttachment[]> {
-    // מדמה הורדת PDF מתוך המייל
-    return Promise.resolve([
-      {
-        fileName: `ticket_${messageId}.pdf`,
-        mimeType: 'application/pdf',
-        dataBase64: 'JVBERi0xLjQKJcOkw7zDtsOfCjIgMCBvYmoKPDwvTGVuZ3RoIDMgMCBSL0ZpbHRlci9GbGF0ZURlY29kZT4+CnN0cmVhbQp4n...' // דמה
+    if (!token || token.trim() === '') {
+      return [];
+    }
+
+    try {
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) return [];
+
+      const messageData = await res.json();
+      const attachments: EmailAttachment[] = [];
+      const parts = messageData.payload?.parts || [];
+
+      for (const part of parts) {
+        if (part.filename && part.body?.attachmentId) {
+          const attachUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${part.body.attachmentId}`;
+          const attachRes = await fetch(attachUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (attachRes.ok) {
+            const attachData = await attachRes.json();
+            attachments.push({
+              fileName: part.filename,
+              mimeType: part.mimeType || 'application/pdf',
+              dataBase64: attachData.data || '',
+            });
+          }
+        }
       }
-    ]);
+
+      return attachments;
+    } catch (err) {
+      console.error('[EmailSyncService] שגיאה בהורדת קבצים מצורפים:', err);
+      return [];
+    }
   }
 }

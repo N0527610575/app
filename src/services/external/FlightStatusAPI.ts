@@ -23,7 +23,7 @@ export class FlightStatusAPI {
   private static readonly API_BASE_URL = 'https://api.aviationstack.com/v1/flights';
 
   // יש למלא כאן מפתח API עבור שירות זמני טיסות וסטטוס טיסות (למשל: Aviationstack / FlightStats)
-  private static readonly API_KEY: string = '';
+  private static readonly API_KEY: string = 'https://data.gov.il/api/3/action/datastore_search?resource_id=e83f763b-b7d7-479e-b172-ae981ddc6de5&limit=100';
 
   /**
    * מושך את הסטטוס העדכני של הטיסה

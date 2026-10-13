@@ -187,3 +187,4 @@ export class LocalOCREngine {
     return match ? match[1].trim() : undefined;
   }
 }
+

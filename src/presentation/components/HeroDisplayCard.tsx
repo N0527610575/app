@@ -9,8 +9,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 
-// ייבוא דמה של ספריית יצירת ברקודים (חבילה נפוצה ב-React Native)
-// import QRCode from 'react-native-qrcode-svg';
+import QRCode from 'react-native-qrcode-svg';
 
 import { ContextState } from '../../core/types/ContextState';
 import { TravelDocument } from '../../core/types/Document';
@@ -48,10 +47,13 @@ export const HeroDisplayCard: React.FC<HeroDisplayCardProps> = ({ context, activ
           <View style={styles.barcodeSection}>
             <Text style={styles.instructionText}>הצג לסריקה</Text>
 
-            {/* כאן בפועל ירונדר הברקוד עצמו בעזרת ספריית QRCode או Barcode */}
             <View style={styles.barcodePlaceholder}>
-              {/* <QRCode value={activeDocument.barcode.rawData} size={250} /> */}
-              <Text style={styles.placeholderText}>[ ברקוד ]</Text>
+              <QRCode
+                value={activeDocument.barcode.rawData || 'SMART-TRAVEL-BOARDING-PASS'}
+                size={220}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+              />
             </View>
           </View>
         ) :

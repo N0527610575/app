@@ -4,6 +4,33 @@ import { Trip } from '../types/Trip';
 
 export class DatabaseService {
   private static db: SQLite.SQLiteDatabase | null = null;
+  private static readonly VAULT_KEY = 'SmartTravelVault_Encrypted_Offline_Key_2026';
+
+  /**
+   * הצפנה סימטרית מקומית להגנה על המידע הרגיש במסד הנתונים (Encryption at Rest)
+   */
+  private static encrypt(plainText: string): string {
+    const encoded = encodeURIComponent(plainText);
+    const codes: number[] = [];
+    for (let i = 0; i < encoded.length; i++) {
+      codes.push(encoded.charCodeAt(i) ^ this.VAULT_KEY.charCodeAt(i % this.VAULT_KEY.length));
+    }
+    return `enc_v1:${codes.join('.')}`;
+  }
+
+  /**
+   * פענוח הנתונים המקומיים
+   */
+  private static decrypt(cipherText: string): string {
+    if (!cipherText.startsWith('enc_v1:')) return cipherText;
+    const parts = cipherText.substring(7).split('.');
+    let decoded = '';
+    for (let i = 0; i < parts.length; i++) {
+      const code = parseInt(parts[i], 10);
+      decoded += String.fromCharCode(code ^ this.VAULT_KEY.charCodeAt(i % this.VAULT_KEY.length));
+    }
+    return decodeURIComponent(decoded);
+  }
 
   public static async init(): Promise<void> {
     if (!this.db) {
@@ -27,9 +54,10 @@ export class DatabaseService {
 
   public static async saveTrip(trip: Trip): Promise<void> {
     await this.init();
+    const encryptedData = this.encrypt(JSON.stringify(trip));
     await this.db?.runAsync(
       'INSERT OR REPLACE INTO trips (id, data, is_active) VALUES (?, ?, ?)',
-      [trip.id, JSON.stringify(trip), trip.isActive ? 1 : 0]
+      [trip.id, encryptedData, trip.isActive ? 1 : 0]
     );
   }
 
@@ -39,7 +67,8 @@ export class DatabaseService {
       'SELECT data FROM trips WHERE is_active = 1 LIMIT 1'
     );
     if (!result) return null;
-    return JSON.parse(result.data) as Trip;
+    const decrypted = this.decrypt(result.data);
+    return JSON.parse(decrypted) as Trip;
   }
 
   public static async getAllTrips(): Promise<Trip[]> {
@@ -48,7 +77,7 @@ export class DatabaseService {
       'SELECT data FROM trips ORDER BY id DESC'
     );
     if (!rows) return [];
-    return rows.map(r => JSON.parse(r.data) as Trip);
+    return rows.map(r => JSON.parse(this.decrypt(r.data)) as Trip);
   }
 
   public static async deleteTrip(id: string): Promise<void> {
@@ -59,9 +88,10 @@ export class DatabaseService {
 
   public static async saveDocument(doc: TravelDocument): Promise<void> {
     await this.init();
+    const encryptedData = this.encrypt(JSON.stringify(doc));
     await this.db?.runAsync(
       'INSERT OR REPLACE INTO documents (id, trip_id, category, data) VALUES (?, ?, ?, ?)',
-      [doc.id, doc.tripId, doc.category, JSON.stringify(doc)]
+      [doc.id, doc.tripId, doc.category, encryptedData]
     );
   }
 
@@ -72,7 +102,7 @@ export class DatabaseService {
       [tripId]
     );
     if (!rows) return [];
-    return rows.map(r => JSON.parse(r.data) as TravelDocument);
+    return rows.map(r => JSON.parse(this.decrypt(r.data)) as TravelDocument);
   }
 
   public static async getDocumentById(id: string): Promise<TravelDocument | null> {
@@ -82,7 +112,7 @@ export class DatabaseService {
       [id]
     );
     if (!result) return null;
-    return JSON.parse(result.data) as TravelDocument;
+    return JSON.parse(this.decrypt(result.data)) as TravelDocument;
   }
 
   public static async deleteDocument(id: string): Promise<void> {

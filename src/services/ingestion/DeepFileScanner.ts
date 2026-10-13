@@ -9,6 +9,10 @@
 import * as FileSystem from 'expo-file-system';
 import { AppConfig } from '../../core/constants/AppConfig';
 import { TripAnchor } from '../../core/types/Trip';
+import { TravelDocument } from '../../core/types/Document';
+import { LocalOCREngine } from '../processing/LocalOCREngine';
+import { TripDateCorrelator } from './TripDateCorrelator';
+import { DatabaseService } from '../../core/database/DatabaseService';
 
 export interface ScannedFile {
   filePath: string;
@@ -66,6 +70,27 @@ export class DeepFileScanner {
       console.error('[DeepFileScanner] שגיאה במהלך סריקת הקבצים:', error);
       return [];
     }
+  }
+
+  /**
+   * סריקה, פענוח ב-OCR מקומי, הצלבת תאריכים ושמירה אוטומטית במסד הנתונים
+   */
+  public static async processAndIngestFiles(tripId: string, anchor: TripAnchor): Promise<TravelDocument[]> {
+    const files = await this.scanRetroactively(anchor);
+    const ingestedDocs: TravelDocument[] = [];
+
+    for (const file of files) {
+      const ocrResult = await LocalOCREngine.recognizeTextLocally(file.filePath);
+      const isRelevant = TripDateCorrelator.isDocumentRelevantForTrip(ocrResult.dates, anchor);
+
+      if (isRelevant || ocrResult.category === 'passport') {
+        const doc = LocalOCREngine.createDocumentFromOCR(tripId, file.filePath, ocrResult, file.fileName);
+        await DatabaseService.saveDocument(doc);
+        ingestedDocs.push(doc);
+      }
+    }
+
+    return ingestedDocs;
   }
 
   /**

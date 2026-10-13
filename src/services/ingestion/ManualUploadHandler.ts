@@ -9,7 +9,9 @@
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { DocumentCategory } from '../../core/types/Document';
+import { DocumentCategory, TravelDocument } from '../../core/types/Document';
+import { LocalOCREngine } from '../processing/LocalOCREngine';
+import { DatabaseService } from '../../core/database/DatabaseService';
 
 export interface ManualUploadResult {
   localFilePath: string;
@@ -78,6 +80,33 @@ export class ManualUploadHandler {
       console.error("[ManualUploadHandler] שגיאה בשמירת קובץ בכספת:", error);
       return uploadResult.localFilePath;
     }
+  }
+
+  /**
+   * עיבוד מלא של מסמך שהועלה: שמירה בכספת, פענוח ב-OCR מקומי ושמירה ב-Database
+   */
+  public static async processUploadedDocument(
+    tripId: string,
+    uploadResult: ManualUploadResult,
+    passengerId?: string
+  ): Promise<TravelDocument> {
+    const vaultPath = await this.secureFileInVault(uploadResult);
+    const ocrResult = await LocalOCREngine.recognizeTextLocally(vaultPath);
+
+    if (uploadResult.userSuggestedCategory) {
+      ocrResult.category = uploadResult.userSuggestedCategory;
+    }
+
+    const doc = LocalOCREngine.createDocumentFromOCR(
+      tripId,
+      vaultPath,
+      ocrResult,
+      uploadResult.fileName,
+      passengerId
+    );
+
+    await DatabaseService.saveDocument(doc);
+    return doc;
   }
 
   /**
